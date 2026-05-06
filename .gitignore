@@ -1,0 +1,12 @@
+# Archivos compilados de Java
+bin/
+*.class
+
+# Configuraciones locales de VS Code
+.vscode/
+.settings/
+.classpath
+.project
+
+# Archivos de prueba generados por los peers
+descargas_*
