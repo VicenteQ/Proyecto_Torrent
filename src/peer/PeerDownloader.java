@@ -52,10 +52,10 @@ public class PeerDownloader implements Runnable {
     private void guardarArchivo(String name, byte[] data) {
         // Región crítica protegida por synchronized
         synchronized (fileLock) {
-            // Usamos FileOutputStream. El parámetro 'true' permite añadir datos si simulan chunks
-            try (FileOutputStream fos = new FileOutputStream("descargas_" + name, true)) {
+            // ELIMINAMOS EL 'true' PARA QUE NO CORROMPA LA IMAGEN
+            try (FileOutputStream fos = new FileOutputStream("descargas_" + name)) {
                 fos.write(data);
-                System.out.println("Archivo/Chunk " + name + " guardado exitosamente en disco.");
+                System.out.println("Archivo " + name + " guardado exitosamente en disco.");
             } catch (IOException e) {
                 System.err.println("Error de I/O al guardar el archivo: " + e.getMessage());
             }

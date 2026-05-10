@@ -6,6 +6,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -43,16 +46,21 @@ public class PeerServer implements Runnable {
                 String fileName = request.getFileName();
                 System.out.println("Me estan pidiendo el archivo: " + fileName);
                 
-                // Leer el archivo local (simulado con un string para pruebas iniciales)
-                // En un caso real, usarías Files.readAllBytes(Paths.get(fileName))
-                String fakeFileContent = "Contenido simulado del chunk para " + fileName;
-                byte[] fileData = fakeFileContent.getBytes();
+                Path filePath = Paths.get(fileName);
                 
-                // Enviar el archivo de vuelta encapsulado en el Message
-                Message response = new Message("FILE_DATA", fileName, null, null, fileData);
-                out.writeObject(response);
-                out.flush();
-                System.out.println("Archivo enviado exitosamente.");
+                // Verificamos si el archivo físico realmente existe en la carpeta
+                if (Files.exists(filePath)) {
+                    // LEER EL ARCHIVO REAL DEL DISCO DURO (Bytes binarios)
+                    byte[] fileData = Files.readAllBytes(filePath);
+                    
+                    // Enviar el archivo de vuelta encapsulado en el Message
+                    Message response = new Message("FILE_DATA", fileName, null, null, fileData);
+                    out.writeObject(response);
+                    out.flush();
+                    System.out.println("Archivo fisico enviado exitosamente.");
+                } else {
+                    System.err.println("Error: El archivo " + fileName + " no se encontro en el disco local.");
+                }
             }
         } catch (IOException | ClassNotFoundException e) {
             System.err.println("Error enviando datos P2P: " + e.getMessage());
