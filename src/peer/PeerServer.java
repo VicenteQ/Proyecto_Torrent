@@ -18,7 +18,7 @@ public class PeerServer implements Runnable {
 
     public PeerServer(int listenPort) {
         this.listenPort = listenPort;
-        this.threadPool = Executors.newFixedThreadPool(10); // Pool para atender a varios peers a la vez
+        this.threadPool = Executors.newFixedThreadPool(10); 
     }
 
     @Override
@@ -27,7 +27,6 @@ public class PeerServer implements Runnable {
         try (ServerSocket serverSocket = new ServerSocket(listenPort)) {
             while (true) {
                 Socket p2pSocket = serverSocket.accept();
-                // Delegar la subida del archivo a un hilo independiente
                 threadPool.execute(() -> handleP2PRequest(p2pSocket));
             }
         } catch (IOException e) {
@@ -41,19 +40,16 @@ public class PeerServer implements Runnable {
             ObjectInputStream in = new ObjectInputStream(socket.getInputStream())
         ) {
             Message request = (Message) in.readObject();
+            String type = request.getType();
             
-            if ("DOWNLOAD".equals(request.getType())) {
+            if ("DOWNLOAD".equals(type)) {
                 String fileName = request.getFileName();
                 System.out.println("Me estan pidiendo el archivo: " + fileName);
                 
                 Path filePath = Paths.get(fileName);
                 
-                // Verificamos si el archivo físico realmente existe en la carpeta
                 if (Files.exists(filePath)) {
-                    // LEER EL ARCHIVO REAL DEL DISCO DURO (Bytes binarios)
                     byte[] fileData = Files.readAllBytes(filePath);
-                    
-                    // Enviar el archivo de vuelta encapsulado en el Message
                     Message response = new Message("FILE_DATA", fileName, null, null, fileData);
                     out.writeObject(response);
                     out.flush();
@@ -61,9 +57,29 @@ public class PeerServer implements Runnable {
                 } else {
                     System.err.println("Error: El archivo " + fileName + " no se encontro en el disco local.");
                 }
+            } 
+            // NUEVO: LÓGICA DEL ALGORITMO BULLY
+            else if ("ELECTION".equals(type)) {
+                System.out.println("[BULLY] Recibida ELECCION de ID: " + request.getSenderId());
+                // Responder "ANSWER" para indicar que asumimos la responsabilidad (ya que tenemos ID mayor)
+                Message answer = new Message("ANSWER", PeerNode.miId, PeerNode.MY_IP);
+                out.writeObject(answer);
+                out.flush();
+                
+                // Iniciar nuestra propia elección para asegurar que no haya alguien aún mayor
+                PeerNode.iniciarEleccion();
+            } 
+            else if ("ANSWER".equals(type)) {
+                System.out.println("[BULLY] Un nodo mayor ha respondido (ANSWER). Me retiro de la contienda.");
+                PeerNode.recibiRespuesta = true; // Detiene la proclamación
+            } 
+            else if ("COORDINATOR".equals(type)) {
+                PeerNode.currentTrackerIp = request.getPeerAddress();
+                System.out.println("\n*** [NUEVO LÍDER] Tracker establecido en: " + PeerNode.currentTrackerIp + " ***\n");
             }
+
         } catch (IOException | ClassNotFoundException e) {
-            System.err.println("Error enviando datos P2P: " + e.getMessage());
+            System.err.println("Error manejando peticion P2P: " + e.getMessage());
         } finally {
             try { socket.close(); } catch (IOException e) { System.err.println(e.getMessage()); }
         }
