@@ -34,4 +34,8 @@ public class TrackerServer {
         // Eliminado el finally con shutdown() ya que el servidor debe correr indefinidamente 
         // mientras sea el líder.
     }
+    
+    public static void main(String[] args) {
+        iniciarServidor();
+    }
 }

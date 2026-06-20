@@ -43,7 +43,11 @@ public class PeerServer implements Runnable {
             Message request = (Message) in.readObject();
 
             PeerNode.actualizarReloj(request.getLamportTime());
-            LogManager.registrar("peer.log", request.getType() + " recibido", PeerNode.getRelojLamport());
+            
+            // No logueamos los HEARTBEATS en el txt para no saturar el archivo Log, pero si los ELECTION/DOWNLOAD
+            if (!"HEARTBEAT".equals(request.getType())) {
+                LogManager.registrar("peer.log", request.getType() + " recibido", PeerNode.getRelojLamport());
+            }
 
             String type = request.getType();
             
@@ -67,7 +71,7 @@ public class PeerServer implements Runnable {
                     System.err.println("Error: El archivo " + fileName + " no se encontro en el disco local.");
                 }
             } 
-            // NUEVO: LÓGICA DEL ALGORITMO BULLY
+            // LÓGICA DEL ALGORITMO BULLY
             else if ("ELECTION".equals(type)) {
                 System.out.println("[BULLY] Recibida ELECCION de ID: " + request.getSenderId());
 
@@ -95,6 +99,13 @@ public class PeerServer implements Runnable {
 
                 int tiempoCoordinator = PeerNode.incrementarReloj();
                 LogManager.registrar("peer.log", "COORDINATOR procesado", tiempoCoordinator);
+            }
+            // RESPUESTA PARA MANTENER LA RED P2P VIVA
+            else if ("HEARTBEAT".equals(type)) {
+                int tiempoHeartbeat = PeerNode.incrementarReloj();
+                Message ack = new Message("HEARTBEAT_ACK", PeerNode.miId, PeerNode.MY_IP, tiempoHeartbeat);
+                out.writeObject(ack);
+                out.flush();
             }
 
         } catch (IOException | ClassNotFoundException e) {

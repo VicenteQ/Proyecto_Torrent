@@ -10,11 +10,12 @@ import java.net.Socket;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PeerNode {
     
     // LISTA GLOBAL DE MEMBRESÍA
-    public static List<NodeInfo> membresia = new ArrayList<>();
+    public static List<NodeInfo> membresia = new CopyOnWriteArrayList<>();
 
     public static String currentTrackerIp = "25.42.159.175"; 
     private static final int TRACKER_PORT = 8081; //8080;
@@ -24,8 +25,8 @@ public class PeerNode {
     public static final String MY_ADDRESS = "25.33.48.72:" + MY_P2P_PORT;
     public static final String MY_IP = "25.33.48.72"; // Hecha public para acceso desde PeerServer
     
-    // NUEVO: Variables de estado para el Algoritmo Bully
-    public static int miId = 1; // IMPORTANTE: Cambiar este ID según el PC (ej. 1, 2, o 3)
+    // Variables de estado para el Algoritmo Bully
+    public static int miId = 1; 
     public static volatile boolean recibiRespuesta = false;
     private static volatile int relojLamport = 0;
 
@@ -34,18 +35,62 @@ public class PeerNode {
         // LLENAMOS LA LISTA DE MEMBRESÍA AL INICIAR EL PROGRAMA
         membresia.add(new NodeInfo(1, "25.33.48.72", 5001));       // Tu PC
         membresia.add(new NodeInfo(2, "25.1.1.1", 5001));          // IP falsa para evitar el "eco" local
-        membresia.add(new NodeInfo(3, "25.42.159.175", 5001));     // Tu amigo (Tracker inicial caído)
+        membresia.add(new NodeInfo(3, "25.42.159.175", 5001));     // Tracker inicial caído
 
         Thread serverThread = new Thread(new PeerServer(MY_P2P_PORT));
         serverThread.start();
 
         // Iniciamos el monitor de caídas en segundo plano
         startTrackerMonitor();
+        // Iniciamos el monitor de latidos P2P
+        startPeerHeartbeatMonitor();
 
         System.out.println("Anunciando archivos al Tracker...");
         announceToTracker("archivo.txt");
         announceToTracker("al lalo se lo cagaron - copia.png");
     }
+
+    // LATIDOS P2P CONSTANTES
+    public static void startPeerHeartbeatMonitor() {
+        new Thread(() -> {
+            while (true) {
+                try {
+                    Thread.sleep(4000); // Enviar latidos cada 4 segundos
+                    
+                    for (NodeInfo nodo : membresia) {
+                        // No nos enviamos latidos a nosotros mismos ni al tracker central (de eso se encarga startTrackerMonitor)
+                        if (nodo.getId() == miId || nodo.getIp().equals(currentTrackerIp)) {
+                            continue;
+                        }
+
+                        try (Socket s = new Socket()) {
+                            s.connect(new java.net.InetSocketAddress(nodo.getIp(), nodo.getPort()), 2000);
+                            s.setSoTimeout(2000); // Esperar máximo 2 segundos por respuesta
+                            
+                            ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
+                            ObjectInputStream in = new ObjectInputStream(s.getInputStream());
+
+                            int tiempoEnvio = incrementarReloj();
+                            // Reusamos el constructor del Bully para enviar ID y IP
+                            Message msg = new Message("HEARTBEAT", miId, MY_IP, tiempoEnvio);
+                            out.writeObject(msg);
+                            out.flush();
+
+                            Message response = (Message) in.readObject();
+                            if ("HEARTBEAT_ACK".equals(response.getType())) {
+                                actualizarReloj(response.getLamportTime());
+                            }
+                        } catch (IOException | ClassNotFoundException e) {
+                            System.out.println("\n[HEARTBEAT] Nodo " + nodo.getId() + " (" + nodo.getIp() + ") CAIDO o no responde. Eliminando de membresia activa.");
+                            membresia.remove(nodo); // Eliminación segura gracias al CopyOnWriteArrayList
+                        }
+                    }
+                } catch (InterruptedException e) {
+                    System.err.println("Error en el monitor de latidos P2P: " + e.getMessage());
+                }
+            }
+        }).start();
+    }    
 
     public static void startTrackerMonitor() {
         new Thread(() -> {
@@ -71,7 +116,7 @@ public class PeerNode {
         }).start();
     }
 
-    // PASO 4: Lógica completa del Algoritmo Bully (AHORA SÚPER RÁPIDO)
+    // Lógica completa del Algoritmo Bully
     public static void iniciarEleccion() {
         new Thread(() -> {
 

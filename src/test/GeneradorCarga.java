@@ -55,9 +55,9 @@ public class GeneradorCarga {
 
                         Message msg;
                         if (isAnnounce) {
-                            msg = new Message("ANNOUNCE", fileName, mockPeerAddress, null, null);
+                            msg = new Message("ANNOUNCE", fileName, mockPeerAddress, null, null, 0);
                         } else {
-                            msg = new Message("REQUEST", fileName, null, null, null);
+                            msg = new Message("REQUEST", fileName, null, null, null, 0);
                         }
 
                         // Envia petición
