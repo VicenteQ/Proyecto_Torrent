@@ -1,6 +1,7 @@
 package peer;
 
 import common.Message;
+import common.LogManager;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
@@ -30,13 +31,19 @@ public class PeerDownloader implements Runnable {
              ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
 
+            int tiempo = PeerNode.incrementarReloj();
+            LogManager.registrar("peer.log", "DOWNLOAD enviado", tiempo);
+
             // Solicitar el archivo al otro Peer (ahora pasamos null al nuevo parámetro content)
-            Message request = new Message("DOWNLOAD", fileName, null, null, null);
+            Message request = new Message("DOWNLOAD", fileName, null, null, null, tiempo);
             out.writeObject(request);
             out.flush();
 
             // Leer la respuesta con los datos
             Message response = (Message) in.readObject();
+
+            PeerNode.actualizarReloj(response.getLamportTime());
+            LogManager.registrar("peer.log", response.getType() + " recibido", PeerNode.getRelojLamport());
             
             if ("FILE_DATA".equals(response.getType()) && response.getContent() != null) {
                 guardarArchivo(response.getFileName(), response.getContent());

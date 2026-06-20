@@ -1,6 +1,7 @@
 package peer;
 
 import common.Message;
+import common.LogManager;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -40,6 +41,10 @@ public class PeerServer implements Runnable {
             ObjectInputStream in = new ObjectInputStream(socket.getInputStream())
         ) {
             Message request = (Message) in.readObject();
+
+            PeerNode.actualizarReloj(request.getLamportTime());
+            LogManager.registrar("peer.log", request.getType() + " recibido", PeerNode.getRelojLamport());
+
             String type = request.getType();
             
             if ("DOWNLOAD".equals(type)) {
@@ -50,7 +55,11 @@ public class PeerServer implements Runnable {
                 
                 if (Files.exists(filePath)) {
                     byte[] fileData = Files.readAllBytes(filePath);
-                    Message response = new Message("FILE_DATA", fileName, null, null, fileData);
+
+                    int tiempoEnvio = PeerNode.incrementarReloj();
+                    LogManager.registrar("peer.log", "FILE_DATA enviado", tiempoEnvio);
+
+                    Message response = new Message("FILE_DATA", fileName, null, null, fileData, tiempoEnvio);
                     out.writeObject(response);
                     out.flush();
                     System.out.println("Archivo fisico enviado exitosamente.");
@@ -61,8 +70,12 @@ public class PeerServer implements Runnable {
             // NUEVO: LÓGICA DEL ALGORITMO BULLY
             else if ("ELECTION".equals(type)) {
                 System.out.println("[BULLY] Recibida ELECCION de ID: " + request.getSenderId());
+
+                int tiempoEnvio = PeerNode.incrementarReloj();
+                LogManager.registrar("peer.log", "ANSWER enviado", tiempoEnvio);
+
                 // Responder "ANSWER" para indicar que asumimos la responsabilidad (ya que tenemos ID mayor)
-                Message answer = new Message("ANSWER", PeerNode.miId, PeerNode.MY_IP);
+                Message answer = new Message("ANSWER", PeerNode.miId, PeerNode.MY_IP, tiempoEnvio);
                 out.writeObject(answer);
                 out.flush();
                 
@@ -72,10 +85,16 @@ public class PeerServer implements Runnable {
             else if ("ANSWER".equals(type)) {
                 System.out.println("[BULLY] Un nodo mayor ha respondido (ANSWER). Me retiro de la contienda.");
                 PeerNode.recibiRespuesta = true; // Detiene la proclamación
+
+                int tiempoAnswer = PeerNode.incrementarReloj();
+                LogManager.registrar("peer.log", "ANSWER procesado", tiempoAnswer);
             } 
             else if ("COORDINATOR".equals(type)) {
                 PeerNode.currentTrackerIp = request.getPeerAddress();
                 System.out.println("\n*** [NUEVO LÍDER] Tracker establecido en: " + PeerNode.currentTrackerIp + " ***\n");
+
+                int tiempoCoordinator = PeerNode.incrementarReloj();
+                LogManager.registrar("peer.log", "COORDINATOR procesado", tiempoCoordinator);
             }
 
         } catch (IOException | ClassNotFoundException e) {

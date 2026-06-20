@@ -2,6 +2,7 @@ package peer;
 
 import common.Message;
 import common.NodeInfo;
+import common.LogManager;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -25,7 +26,8 @@ public class PeerNode {
     
     // NUEVO: Variables de estado para el Algoritmo Bully
     public static int miId = 1; // IMPORTANTE: Cambiar este ID según el PC (ej. 1, 2, o 3)
-    public static volatile boolean recibiRespuesta = false; 
+    public static volatile boolean recibiRespuesta = false;
+    private static volatile int relojLamport = 0;
 
     public static void main(String[] args) {
         
@@ -72,6 +74,10 @@ public class PeerNode {
     // PASO 4: Lógica completa del Algoritmo Bully (AHORA SÚPER RÁPIDO)
     public static void iniciarEleccion() {
         new Thread(() -> {
+
+            int tiempoEleccion = incrementarReloj();
+            LogManager.registrar("peer.log", "Inicio de elección", tiempoEleccion);
+
             System.out.println("[ELECCION] Iniciando Algoritmo Bully...");
             recibiRespuesta = false;
 
@@ -84,7 +90,10 @@ public class PeerNode {
                         ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
                         ObjectInputStream in = new ObjectInputStream(s.getInputStream());
                         
-                        Message msg = new Message("ELECTION", miId, MY_IP);
+                        int tiempoEnvio = incrementarReloj();
+                        LogManager.registrar("peer.log", "ELECTION enviado", tiempoEnvio);
+
+                        Message msg = new Message("ELECTION", miId, MY_IP, tiempoEnvio);
                         out.writeObject(msg);
                         out.flush();
                         System.out.println("  -> ELECTION enviado al ID: " + nodo.getId());
@@ -99,6 +108,9 @@ public class PeerNode {
 
             // 3. Evaluar resultado y proclamarse si nadie mayor respondió
             if (!recibiRespuesta) {
+                int tiempoLider = incrementarReloj();
+                LogManager.registrar("peer.log", "Me proclamo líder", tiempoLider);
+                
                 System.out.println("\n[ELECCION] ¡Ningún nodo mayor respondió. YO SOY EL NUEVO LÍDER!");
                 currentTrackerIp = MY_IP;
                 
@@ -112,7 +124,10 @@ public class PeerNode {
                             s.connect(new java.net.InetSocketAddress(nodo.getIp(), nodo.getPort()), 2000);
                             ObjectOutputStream out = new ObjectOutputStream(s.getOutputStream());
                             
-                            Message msg = new Message("COORDINATOR", miId, MY_IP);
+                            int tiempoCoordinator = incrementarReloj();
+                            LogManager.registrar("peer.log", "COORDINATOR enviado", tiempoCoordinator);
+
+                            Message msg = new Message("COORDINATOR", miId, MY_IP, tiempoCoordinator);
                             out.writeObject(msg);
                             out.flush();
                         } catch (IOException e) { 
@@ -129,11 +144,18 @@ public class PeerNode {
              ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
              ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
             
-            Message msg = new Message("ANNOUNCE", fileName, MY_ADDRESS, null, null);
+            int tiempoEnvio = incrementarReloj();
+            LogManager.registrar("peer.log", "ANNOUNCE enviado", tiempoEnvio);
+
+            Message msg = new Message("ANNOUNCE", fileName, MY_ADDRESS, null, null, tiempoEnvio);
             out.writeObject(msg);
             out.flush();
             
             Message response = (Message) in.readObject();
+
+            actualizarReloj(response.getLamportTime());
+            LogManager.registrar("peer.log", response.getType() + " recibido", getRelojLamport());
+
             System.out.println("Respuesta del tracker (ANNOUNCE): " + response.getType());
             
         } catch (IOException | ClassNotFoundException e) {
@@ -143,18 +165,40 @@ public class PeerNode {
 
     private static Set<String> requestFromTracker(String fileName) {
         try (Socket socket = new Socket(currentTrackerIp, TRACKER_PORT);
-             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream());
+             ObjectOutputStream out = new ObjectOutputStream(socket.getOutputStream()); 
              ObjectInputStream in = new ObjectInputStream(socket.getInputStream())) {
             
-            Message msg = new Message("REQUEST", fileName, null, null, null);
+            int tiempoEnvio = incrementarReloj();
+            LogManager.registrar("peer.log", "REQUEST enviado", tiempoEnvio);
+
+            Message msg = new Message("REQUEST", fileName, null, null, null, tiempoEnvio);
             out.writeObject(msg);
             out.flush();
             
             Message response = (Message) in.readObject();
+
+            actualizarReloj(response.getLamportTime());
+            LogManager.registrar("peer.log", response.getType() + " recibido", getRelojLamport());
+
             return response.getPeerList();
             
         } catch (IOException | ClassNotFoundException e) {
             return null;
         }
+    }
+
+    //Incremento del reloj Lamport
+    public static synchronized int incrementarReloj() {
+        relojLamport++;
+        return relojLamport;
+    }
+
+    //Incremento del reloj Lamport cuando se recibe un mensaje
+    public static synchronized void actualizarReloj(int tiempoRecibido) {
+        relojLamport = Math.max(relojLamport, tiempoRecibido) + 1;
+    }
+
+    public static synchronized int getRelojLamport() {
+        return relojLamport;
     }
 }

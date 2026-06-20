@@ -1,6 +1,7 @@
 package tracker;
 
 import common.Message; // Importación obligatoria
+import common.LogManager;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -26,18 +27,27 @@ public class PeerHandler implements Runnable {
         ) {
             // Leer el objeto serializado enviado por el Peer
             Message request = (Message) in.readObject();
+
+            TrackerClock.actualizarReloj(request.getLamportTime());
+            LogManager.registrar("tracker.log", request.getType() +" recibido", TrackerClock.getRelojLamport());
             
             String messageType = request.getType();
             String fileName = request.getFileName();
 
             if ("ANNOUNCE".equals(messageType)) {
                 String peerAddress = request.getPeerAddress(); // Ejemplo: "192.168.1.5:5000"
-                
+
                 // Agregar el peer al registro de forma segura (Thread-safe)
                 fileRegistry.computeIfAbsent(fileName, k -> ConcurrentHashMap.newKeySet()).add(peerAddress);
                 
+                int tiempoRegistro  = TrackerClock.incrementarReloj();
+                LogManager.registrar("tracker.log", "Archivo registrado: " + fileName, tiempoRegistro);
+
+                int tiempoEnvio  = TrackerClock.incrementarReloj();
+                LogManager.registrar("tracker.log", "SUCCESS enviado", tiempoEnvio);
+
                 // Confirmar recepción al Peer
-                Message response = new Message("SUCCESS", fileName, null, null, null);
+                Message response = new Message("SUCCESS", fileName, null, null, null, tiempoEnvio);
                 out.writeObject(response);
                 out.flush();
 
@@ -45,8 +55,11 @@ public class PeerHandler implements Runnable {
                 // Obtener la lista de peers o un set vacío si nadie lo tiene
                 Set<String> peers = fileRegistry.getOrDefault(fileName, new HashSet<>());
                 
+                int tiempo = TrackerClock.incrementarReloj();
+                LogManager.registrar("tracker.log", "PEER_LIST enviado", tiempo);
+
                 // Enviar la estructura de datos compleja al solicitante
-                Message response = new Message("PEER_LIST", fileName, null, peers, null);
+                Message response = new Message("PEER_LIST", fileName, null, peers, null, tiempo);
                 out.writeObject(response);
                 out.flush();
             }
