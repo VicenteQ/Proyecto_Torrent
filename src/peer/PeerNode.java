@@ -16,7 +16,7 @@ public class PeerNode {
     public static List<NodeInfo> membresia = new ArrayList<>();
 
     public static String currentTrackerIp = "25.42.159.175"; 
-    private static final int TRACKER_PORT = 8080;
+    private static final int TRACKER_PORT = 8081; //8080;
 
     // DATOS LOCALES Y VARIABLES BULLY
     private static final int MY_P2P_PORT = 5001; 
