@@ -1,5 +1,6 @@
 package test;
 
+import common.Config;
 import common.Message;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
@@ -17,8 +18,8 @@ public class GeneradorCarga {
     private static final int NUM_HILOS = 50; 
     private static final int DURACION_SEGUNDOS = 60;
     
-    private static final String TRACKER_IP = "localhost"; //"25.42.159.175"; 
-    private static final int TRACKER_PORT = 8081; //8080;
+    private static final String TRACKER_IP = Config.INITIAL_TRACKER_IP;
+    private static final int TRACKER_PORT = Config.TRACKER_PORT;
 
     private static AtomicInteger peticionesExitosas = new AtomicInteger(0);
     private static AtomicInteger peticionesFallidas = new AtomicInteger(0);

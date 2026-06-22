@@ -1,5 +1,6 @@
 package tracker;
 
+import common.Config;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -9,7 +10,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class TrackerServer {
-    private static final int PORT = 8081; //8080;
+    private static final int PORT = Config.TRACKER_PORT; //8080;
    
     private static final ConcurrentHashMap<String, Set<String>> fileRegistry = new ConcurrentHashMap<>();
     
@@ -31,8 +32,6 @@ public class TrackerServer {
         } catch (IOException e) {
             System.err.println("Error critico en el servidor Tracker: " + e.getMessage());
         } 
-        // Eliminado el finally con shutdown() ya que el servidor debe correr indefinidamente 
-        // mientras sea el líder.
     }
     
     public static void main(String[] args) {

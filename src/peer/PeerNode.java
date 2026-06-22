@@ -1,13 +1,13 @@
 package peer;
 
+import common.Config;
+import common.LogManager;
 import common.Message;
 import common.NodeInfo;
-import common.LogManager;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -17,25 +17,25 @@ public class PeerNode {
     // LISTA GLOBAL DE MEMBRESÍA
     public static List<NodeInfo> membresia = new CopyOnWriteArrayList<>();
 
-    public static String currentTrackerIp = "25.42.159.175"; 
-    private static final int TRACKER_PORT = 8081; //8080;
+  public static String currentTrackerIp = Config.INITIAL_TRACKER_IP; 
+    private static final int TRACKER_PORT = Config.TRACKER_PORT;
 
     // DATOS LOCALES Y VARIABLES BULLY
-    private static final int MY_P2P_PORT = 5001; 
-    public static final String MY_ADDRESS = "25.33.48.72:" + MY_P2P_PORT;
-    public static final String MY_IP = "25.33.48.72"; // Hecha public para acceso desde PeerServer
+ private static final int MY_P2P_PORT = Config.MY_P2P_PORT; 
+    public static final String MY_ADDRESS = Config.MY_IP + ":" + MY_P2P_PORT;
+    public static final String MY_IP = Config.MY_IP;
     
     // Variables de estado para el Algoritmo Bully
-    public static int miId = 1; 
+    public static int miId = 2; 
     public static volatile boolean recibiRespuesta = false;
     private static volatile int relojLamport = 0;
 
     public static void main(String[] args) {
         
         // LLENAMOS LA LISTA DE MEMBRESÍA AL INICIAR EL PROGRAMA
-        membresia.add(new NodeInfo(1, "25.33.48.72", 5001));       // Tu PC
-        membresia.add(new NodeInfo(2, "25.1.1.1", 5001));          // IP falsa para evitar el "eco" local
-        membresia.add(new NodeInfo(3, "25.42.159.175", 5001));     // Tracker inicial caído
+        membresia.add(new NodeInfo(1, Config.IP1, Config.MY_P2P_PORT));
+        membresia.add(new NodeInfo(2, Config.IP2, Config.MY_P2P_PORT));
+        membresia.add(new NodeInfo(3, Config.IP3, Config.MY_P2P_PORT));
 
         Thread serverThread = new Thread(new PeerServer(MY_P2P_PORT));
         serverThread.start();
@@ -48,6 +48,8 @@ public class PeerNode {
         System.out.println("Anunciando archivos al Tracker...");
         announceToTracker("archivo.txt");
         announceToTracker("al lalo se lo cagaron - copia.png");
+
+        iniciarMenuInteractivo();
     }
 
     // LATIDOS P2P CONSTANTES
@@ -246,4 +248,55 @@ public class PeerNode {
     public static synchronized int getRelojLamport() {
         return relojLamport;
     }
+
+    public static void iniciarMenuInteractivo() {
+        try { Thread.sleep(1000); } catch (InterruptedException e) {}
+
+        try (java.util.Scanner scanner = new java.util.Scanner(System.in)) {
+            while (true) {
+                System.out.println("\n=================================");
+                System.out.println("          MENÚ P2P TIPO TORRENT    ");
+                System.out.println("=================================");
+                System.out.println("1. Descargar archivo de un compañero");
+                System.out.println("2. Salir");
+                System.out.print("Elige una opción: ");
+                
+                String opcion = scanner.nextLine();
+                
+                if ("1".equals(opcion)) {
+                    System.out.print("Ingresa el nombre exacto del archivo a descargar: ");
+                    String fileName = scanner.nextLine();
+                    
+                    System.out.println("Consultando al Tracker por el archivo...");
+                    Set<String> peersConArchivo = requestFromTracker(fileName);
+                    
+                    if (peersConArchivo != null && !peersConArchivo.isEmpty()) {
+                        System.out.println("¡Archivo encontrado! Disponible en: " + peersConArchivo);
+                        
+                        String peerTarget = peersConArchivo.iterator().next(); 
+                        
+                        String[] partes = peerTarget.split(":");
+                        String ip = partes[0];
+                        int puerto = Integer.parseInt(partes[1]);
+                        
+                        System.out.println("Iniciando descarga desde " + ip + " por el puerto " + puerto + "...");
+                        
+                        Thread hiloDescarga = new Thread(new PeerDownloader(ip, puerto, fileName));
+                        hiloDescarga.start();
+                        
+                        try { hiloDescarga.join(); } catch (InterruptedException e) {}
+                        
+                    } else {
+                        System.out.println("Ningún peer tiene el archivo o el Tracker no está disponible.");
+                    }
+                } else if ("2".equals(opcion)) {
+                    System.out.println("Desconectando nodo...");
+                    System.exit(0);
+                } else {
+                    System.out.println("Opción no válida.");
+                }
+            }
+        }
+    }
+
 }

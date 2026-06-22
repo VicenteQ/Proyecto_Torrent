@@ -1,7 +1,7 @@
 package tracker;
 
-import common.Message; // Importación obligatoria
-import common.LogManager;
+import common.LogManager; // Importación obligatoria
+import common.Message;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;

@@ -1,7 +1,7 @@
 package peer;
 
-import common.Message;
 import common.LogManager;
+import common.Message;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
